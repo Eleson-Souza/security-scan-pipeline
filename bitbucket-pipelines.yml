@@ -22,25 +22,12 @@ definitions:
           - apk add curl jq
           - pip install awscli
           - curl -o wizcli https://downloads.wiz.io/wizcli/latest/wizcli-linux-amd64 && chmod +x wizcli
-          - export WIZ_CREDENTIALS=$(aws secretsmanager get-secret-value --secret-id $ENV/gowhirlpool/credentials/wiz --output text --query "SecretString")
+          - export WIZ_CREDENTIALS=$(aws secretsmanager get-secret-value --secret-id $ENV/credentials/wiz --output text --query "SecretString")
           - ./wizcli auth --id "$(echo $WIZ_CREDENTIALS | jq -r .client_id)" --secret "$(echo $WIZ_CREDENTIALS | jq -r .client_secret)"
-          - ./wizcli iac scan --path . --name "$BITBUCKET_REPO_SLUG" --tag repository="$BITBUCKET_REPO_SLUG" --tag branch="$BITBUCKET_BRANCH" --format json --output wiz_iac_scan_results.json
-          - ./wizcli dir scan --path . --name "$BITBUCKET_REPO_SLUG" --tag repository="$BITBUCKET_REPO_SLUG" --tag branch="$BITBUCKET_BRANCH" --format json --output wiz_dir_scan_results.json
+          - ./wizcli iac scan --path . --name "$BITBUCKET_REPO_SLUG" --tag repository="$BITBUCKET_REPO_SLUG" --tag branch="$BITBUCKET_BRANCH" --format human --output wiz_iac_scan_results.json
+          - ./wizcli dir scan --path . --name "$BITBUCKET_REPO_SLUG" --tag repository="$BITBUCKET_REPO_SLUG" --tag branch="$BITBUCKET_BRANCH" --format human --output wiz_dir_scan_results.json
         artifacts:
           - "*_scan_results.json"
-
-    - step: &trigger-it-engineering-scans
-        image: python:3.8-alpine3.18
-        name: Execute IT Engineering Scans
-        script:
-          - pip3 install -r .ci/requirements.txt
-          - python3 .ci/define_it_engineering_scans_context.py
-          - source set_env.sh
-          - pipe: docker://${IT_ENG_SCANS_AWS_ACCOUNT_ID}.dkr.ecr.${IT_ENG_SCANS_AWS_DEFAULT_REGION}.amazonaws.com/lar-trigger-it-engineering-scans-pipe:stable
-            variables:
-              BITBUCKET_ACCESS_TOKEN: ${BITBUCKET_ACCESS_TOKEN}
-              PIPELINE_VARIABLES: "${IT_ENGINEERING_SCANS_VARIABLES}"
-              CUSTOM_PIPELINE_NAME: "${IT_ENGINEERING_SCANS_PIPELINE_NAME}"
 
 pipelines:
   branches:
@@ -48,9 +35,7 @@ pipelines:
     - parallel:
       - step: *execute-scan-with-veracode
       - step: *execute-scan-with-wiz
-      - step: *trigger-it-engineering-scans
 
     main:
       - step: *execute-scan-with-veracode
       - step: *execute-scan-with-wiz
-      - step: *trigger-it-engineering-scans
